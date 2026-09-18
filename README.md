@@ -21,7 +21,7 @@ app/main.py                API: GET /health y POST /clasificar
 data/entrenamiento.csv     datos con los que se entrena el modelo
 data/evaluacion.csv        datos que el modelo nunca ve al entrenar; miden su exactitud
 tests/                     pruebas unitarias, de API y quality gate del modelo
-etapas/                    el workflow en sus 3 primeras etapas, para ir copiando
+etapas/                    el workflow en sus 4 etapas, para ir copiando
 .github/workflows/ci.yml   versión final del pipeline (etapa 4)
 ```
 
@@ -53,7 +53,7 @@ y al final de la ejecución puedes descargar el artefacto `cobertura`.
 
 ### 4. Quality gate del modelo (15 min)
 
-Reemplaza por la versión final (la de este repo en `.github/workflows/ci.yml`).
+Reemplaza por `etapas/04-quality-gate-modelo.yml` (es la misma versión final que trae este repo en `.github/workflows/ci.yml`).
 
 **Rómpelo a propósito:** en `app/clasificador.py`, "optimiza" el vectorizador para que sea más liviano:
 
