@@ -1,0 +1,41 @@
+# ETAPA 2 — Se agrega un job de lint que corre primero y caché de dependencias.
+# Si el lint falla, las pruebas ni siquiera arrancan (needs: lint).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint y formato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - name: Reglas de estilo y errores comunes
+        run: ruff check .
+      - name: Formato del código
+        run: ruff format --check .
+
+  pruebas:
+    name: Pruebas
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip                               # reutiliza lo descargado en ejecuciones anteriores
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -v

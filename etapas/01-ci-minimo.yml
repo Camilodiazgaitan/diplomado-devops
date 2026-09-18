@@ -1,0 +1,27 @@
+# ETAPA 1 — El pipeline de CI más pequeño que sirve para algo.
+# Copiar a .github/workflows/ci.yml, hacer commit y push.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v7
+
+      - name: Instalar Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Correr las pruebas
+        run: pytest -v
