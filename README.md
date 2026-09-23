@@ -70,7 +70,7 @@ Completen `.github/workflows/ci.yml` para que, **en cada push a `main` y en cada
 **Criterio de aceptación:**
 
 - Hacen un cambio cualquiera (por ejemplo, una línea en este README), commit, y en la pestaña Actions aparece una ejecución **sin que nadie la lance a mano**.
-- El log del último paso dice `8 passed`.
+- El log del último paso dice `9 passed`.
 
 **Pistas**
 
