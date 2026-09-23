@@ -10,20 +10,19 @@
 
 name: CI
 
-on:
-  workflow_dispatch:        # TODO reto 1: reemplazar por push a main y pull_request
+on:                      
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   pruebas:
-    name: Pruebas
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest 
     steps:
-      - name: Descargar el código
-        uses: actions/checkout@v7
-
-      # TODO reto 1: instalar Python 3.12 (actions/setup-python@v7)
-      # TODO reto 1: instalar las dependencias
-      # TODO reto 1: correr las pruebas
-
-      - name: Por ahora no verifica nada
-        run: echo "El pipeline corre, pero todavia no verifica nada. Resuelvan el reto 1."
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -v
