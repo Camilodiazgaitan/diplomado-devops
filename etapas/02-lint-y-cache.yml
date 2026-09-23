@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install ruff
+      - run: pip install ruff==0.15.11   # version fija: el pipeline no puede ponerse rojo solo porque salio una version nueva
       - name: Reglas de estilo y errores comunes
         run: ruff check .
       - name: Formato del código

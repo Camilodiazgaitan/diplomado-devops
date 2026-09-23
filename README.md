@@ -130,7 +130,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install ruff
+      - run: pip install ruff==0.15.11
       - name: Reglas de estilo y errores comunes
         run: ruff check .
       - name: Formato del código
@@ -200,7 +200,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install ruff
+      - run: pip install ruff==0.15.11
       - run: ruff check .
       - run: ruff format --check .
 
@@ -268,7 +268,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install ruff
+      - run: pip install ruff==0.15.11
       - run: ruff check .
       - run: ruff format --check .
 
