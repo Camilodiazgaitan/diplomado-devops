@@ -45,16 +45,18 @@ etapas/                    el workflow en sus 4 etapas, para ir copiando
 
 ---
 
-## Paso 0 · Preparar tu copia (10 min)
+## Paso 0 · Crear tu propia copia (10 min)
 
-1. **Fork.** Arriba a la derecha de esta página, pulsa **Fork** y luego **Create fork**. Eso te deja una copia del repositorio en tu propia cuenta, donde puedes romper lo que quieras.
-2. **Habilitar Actions.** En *tu* fork, entra a la pestaña **Actions** y pulsa el botón **"I understand my workflows, go ahead and enable them"**.
-   > GitHub desactiva los workflows en todos los forks hasta que el dueño los habilita. Si te saltas este paso, el pipeline nunca corre y no aparece ningún mensaje de error.
-3. **Borrar el pipeline que ya viene.** Abre `.github/workflows/ci.yml`, pulsa el ícono de papelera (**Delete file**) y confirma con **Commit changes**. Lo vamos a reconstruir desde cero.
+Cada participante trabaja en **su propio repositorio**. Nadie toca el repositorio del docente, así que puedes romper lo que quieras: es justamente lo que vamos a hacer.
 
-A partir de aquí, todo se hace en **tu fork**.
+1. **Crea tu copia.** Arriba a la derecha de esta página, pulsa **Use this template → Create a new repository**.
+   - Nombre: `cicd-lab-tramites` (o el que quieras).
+   - Visibilidad: **Public**. En repositorios públicos, GitHub Actions no tiene costo ni límite de minutos; en privados la cuenta gratuita trae una cuota mensual.
+   - **Create repository**.
+2. **Revisa la pestaña Actions.** Debe estar disponible. Si en lugar de "Use this template" hiciste **Fork**, GitHub deja los workflows desactivados y hay que pulsar **"I understand my workflows, go ahead and enable them"** antes de seguir.
+3. **Borra el pipeline que ya viene.** Abre `.github/workflows/ci.yml`, pulsa el ícono de papelera (**Delete file**) y confirma con **Commit changes**. Lo vamos a reconstruir desde cero, paso a paso.
 
----
+A partir de aquí, todo pasa en **tu** repositorio y desde el navegador.
 
 ## Paso 1 · Tu primer pipeline (15 min)
 
@@ -380,7 +382,7 @@ Ahí el pipeline dejó de ser un tablero informativo y se convirtió en una regl
 
 | Síntoma | Qué revisar |
 |---|---|
-| La pestaña Actions no muestra ninguna ejecución | Falta habilitar los workflows en el fork (Paso 0.2) |
+| La pestaña Actions no muestra ninguna ejecución | Si hiciste Fork en vez de "Use this template", falta habilitar los workflows (Paso 0.2) |
 | "Workflow file issue" o un error de YAML | La indentación. En YAML los espacios importan y no se pueden usar tabuladores |
 | Todo falla en "Instalar dependencias" | Revisa que el nombre del archivo sea exactamente `.github/workflows/ci.yml` y que el paso de checkout esté presente |
 | No aparecen los checks al configurar la regla | Deben haber corrido al menos una vez con ese nombre exacto |
