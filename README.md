@@ -1,380 +1,184 @@
-# Laboratorio de CI — Clasificador de solicitudes de "Trámites al Día"
+# Laboratorio · Pipeline de CI para un clasificador con IA
 
 **Módulo 4 · DevOps y CI/CD · Sesión 1** — Diplomado Automatización de Procesos con IA
 Indra · UPTC · Tec de Monterrey · ProBoyacá
 
-Todo el laboratorio se hace **desde el navegador, dentro de GitHub**. No hay que instalar Git, ni Python, ni nada.
+Este repositorio **no trae el pipeline hecho**. Trae la aplicación, sus pruebas y una lista de retos. El trabajo del equipo es construir el pipeline que la protege.
+
+Se trabaja **en equipos de 3 o 4 personas** y **todo se hace desde el navegador**: no hay que instalar Git, ni Python, ni nada.
 
 ---
 
-## Qué vamos a construir
+## La situación
 
-Esta es una API pequeña que resuelve un problema real de "Trámites al Día": el ciudadano escribe su solicitud en texto libre ("quiero pagar la multa", "necesito un certificado de residencia") y un modelo de IA la clasifica en una de cuatro categorías para enviarla a la cola correcta.
+"Trámites al Día" recibe miles de solicitudes escritas por los ciudadanos en texto libre: *"quiero pagar la multa"*, *"necesito un certificado de residencia"*. Un modelo de IA las clasifica en cuatro categorías y las manda a la cola correcta.
 
-| Categoría | Ejemplo de solicitud |
+| Categoría | Ejemplo |
 |---|---|
 | `renovacion` | "se me venció el permiso y lo quiero renovar" |
 | `certificado` | "necesito una constancia de residencia" |
 | `pago` | "no aparece reflejado el pago que hice ayer" |
 | `queja` | "llevo tres semanas esperando respuesta" |
 
-Sobre esa API vamos a construir el pipeline de integración continua en cuatro etapas:
-
-| Etapa | Qué le agrega al pipeline |
-|---|---|
-| 1 | Correr las pruebas automáticamente en cada cambio |
-| 2 | Revisar el estilo del código (lint) antes de gastar tiempo en pruebas |
-| 3 | Probar en dos versiones de Python y exigir una cobertura mínima |
-| 4 | **Quality gate del modelo**: frenar el cambio si la IA empeora |
+La entidad quiere abrir el código a más desarrolladores, pero hoy nadie verifica nada antes de integrar un cambio. Ustedes son el equipo que va a montar esa verificación automática.
 
 ---
 
-## Qué hay en el repositorio
+## Qué hay aquí
 
 ```
-app/clasificador.py        el modelo (TF-IDF + regresión logística) y la limpieza del texto
-app/main.py                la API: GET /health y POST /clasificar
-data/entrenamiento.csv     48 solicitudes etiquetadas con las que se entrena el modelo
-data/evaluacion.csv        16 solicitudes que el modelo NUNCA ve al entrenar; miden su exactitud
-tests/test_clasificador.py pruebas unitarias
-tests/test_api.py          pruebas de la API
-tests/test_calidad_modelo.py  el quality gate: exige exactitud >= 80%
-etapas/                    el workflow en sus 4 etapas, para ir copiando
-.github/workflows/ci.yml   el pipeline final ya armado
+app/clasificador.py           el modelo (TF-IDF + regresión logística) y la limpieza del texto
+app/main.py                   la API: GET /health y POST /clasificar
+data/entrenamiento.csv        48 solicitudes etiquetadas con las que se entrena el modelo
+data/evaluacion.csv           16 solicitudes que el modelo NUNCA ve al entrenar
+tests/test_clasificador.py    pruebas unitarias (ya escritas)
+tests/test_api.py             pruebas de la API (ya escritas)
+requirements-dev.txt          todo lo necesario para correr pruebas y lint
+.github/workflows/ci.yml      el esqueleto del pipeline, lleno de TODOs: esto es lo que hay que resolver
 ```
 
 ---
 
-## Paso 0 · Crear tu propia copia (10 min)
+## Cómo se trabaja
 
-Cada participante trabaja en **su propio repositorio**. Nadie toca el repositorio del docente, así que puedes romper lo que quieras: es justamente lo que vamos a hacer.
-
-1. **Crea tu copia.** Arriba a la derecha de esta página, pulsa **Use this template → Create a new repository**.
-   - Nombre: `cicd-lab-tramites` (o el que quieras).
-   - Visibilidad: **Public**. En repositorios públicos, GitHub Actions no tiene costo ni límite de minutos; en privados la cuenta gratuita trae una cuota mensual.
-   - **Create repository**.
-2. **Revisa la pestaña Actions.** Debe estar disponible. Si en lugar de "Use this template" hiciste **Fork**, GitHub deja los workflows desactivados y hay que pulsar **"I understand my workflows, go ahead and enable them"** antes de seguir.
-3. **Borra el pipeline que ya viene.** Abre `.github/workflows/ci.yml`, pulsa el ícono de papelera (**Delete file**) y confirma con **Commit changes**. Lo vamos a reconstruir desde cero, paso a paso.
-
-A partir de aquí, todo pasa en **tu** repositorio y desde el navegador.
-
-## Paso 1 · Tu primer pipeline (15 min)
-
-1. En la página principal de tu fork: **Add file → Create new file**.
-2. En el nombre escribe exactamente: `.github/workflows/ci.yml`
-   > Al escribir cada `/`, GitHub va creando las carpetas solo.
-3. Pega este contenido:
-
-```yaml
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  pruebas:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Descargar el código
-        uses: actions/checkout@v7
-
-      - name: Instalar Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
-      - name: Instalar dependencias
-        run: pip install -r requirements-dev.txt
-
-      - name: Correr las pruebas
-        run: pytest -v
-```
-
-4. **Commit changes** (directo a `main`).
-5. Ve a la pestaña **Actions**. En segundos aparece tu ejecución. Entra y abre cada paso para ver el log.
-
-**Qué debe pasar:** todo en verde en menos de un minuto, y en el último paso, `10 passed`.
-
-**Cómo leerlo:**
-
-- `on:` son los disparadores. Este pipeline corre con cada push a `main` y con cada Pull Request hacia `main`.
-- `runs-on: ubuntu-latest` le pide a GitHub una máquina Linux nueva. Nace vacía y se destruye al terminar: por eso el primer paso siempre es descargar el código.
-- `uses:` invoca una acción ya publicada por otros. `run:` ejecuta un comando de consola.
-- Si cualquier paso termina con error, el job se detiene y queda en rojo. Eso no hay que programarlo.
+- **Un repositorio por equipo.** Una sola persona del equipo pulsa arriba **Use this template → Create a new repository**, con visibilidad **Public** (en repositorios públicos Actions no tiene costo). Luego, en **Settings → Collaborators**, invita a los demás del equipo.
+- **Roles que rotan en cada reto.** Uno maneja la pantalla y escribe, otro lee la documentación oficial y el tercero revisa el resultado y decide si el reto está cumplido. Cambien de rol en cada reto.
+- **Cada reto tiene un criterio de aceptación.** No es "quedó bonito": es una condición concreta que se ve en la pestaña Actions.
+- **La documentación oficial es parte del laboratorio:** https://docs.github.com/actions. Buscar ahí es exactamente lo que van a hacer en su trabajo real.
 
 ---
 
-## Paso 2 · Lint y caché (15 min)
+## Reto 0 · Reconocimiento (10 min)
 
-Abre `.github/workflows/ci.yml`, pulsa el lápiz (**Edit**), **reemplaza todo** el contenido por esto y haz commit:
+Antes de tocar el pipeline, entiendan qué están protegiendo.
 
-```yaml
-name: CI
+1. Creen el repositorio del equipo e inviten a los demás.
+2. Abran `app/clasificador.py` y `tests/test_clasificador.py`. ¿Qué verifica cada prueba?
+3. Abran `.github/workflows/ci.yml`. Está casi vacío, con comentarios `TODO`.
+4. Vayan a la pestaña **Actions**, pulsen el workflow **CI → Run workflow**. Corre, pero no verifica nada todavía.
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+**Criterio de aceptación:** el equipo puede explicar en una frase qué hace la aplicación y por qué el pipeline actual no sirve de nada.
 
-permissions:
-  contents: read
-
-jobs:
-  lint:
-    name: Lint y formato
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - run: pip install ruff==0.15.11
-      - name: Reglas de estilo y errores comunes
-        run: ruff check .
-      - name: Formato del código
-        run: ruff format --check .
-
-  pruebas:
-    name: Pruebas
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
-      - run: pip install -r requirements-dev.txt
-      - run: pytest -v
-```
-
-Dos cosas cambiaron:
-
-- **`needs: lint`** — el job de pruebas espera al de lint. Si el lint falla, las pruebas ni arrancan.
-- **`cache: pip`** — la segunda ejecución reutiliza los paquetes ya descargados. Compara el tiempo del paso "Instalar dependencias" entre esta ejecución y la siguiente.
-
-### Rómpelo a propósito
-
-Edita `app/main.py` y agrega en la segunda línea:
-
-```python
-import os
-```
-
-Haz commit y mira la pestaña Actions:
-
-- **Lint y formato** falla en unos 15 segundos con `F401 'os' imported but unused`.
-- **Pruebas** aparece como omitido: nunca llegó a correr.
-
-Un import que sobra no rompe nada en ejecución, pero es basura que se acumula. El pipeline lo detecta antes de gastar un minuto de máquina en pruebas que igual no se iban a aceptar.
-
-Quita la línea, haz commit y vuelve a verde.
+> Si en vez de "Use this template" hicieron **Fork**, GitHub deja los workflows desactivados: hay que entrar a Actions y pulsar *"I understand my workflows, go ahead and enable them"*.
 
 ---
 
-## Paso 3 · Matriz de versiones y cobertura (12 min)
+## Reto 1 · Que las pruebas corran solas (20 min)
 
-Reemplaza otra vez el contenido de `ci.yml`:
+Completen `.github/workflows/ci.yml` para que, **en cada push a `main` y en cada Pull Request**, el pipeline instale las dependencias y corra las pruebas.
 
-```yaml
-name: CI
+**Criterio de aceptación:**
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+- Hacen un cambio cualquiera (por ejemplo, una línea en este README), commit, y en la pestaña Actions aparece una ejecución **sin que nadie la lance a mano**.
+- El log del último paso dice `8 passed`.
 
-permissions:
-  contents: read
+**Pistas**
 
-jobs:
-  lint:
-    name: Lint y formato
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - run: pip install ruff==0.15.11
-      - run: ruff check .
-      - run: ruff format --check .
+- El runner nace vacío: el primer paso siempre es traer el código.
+- Las acciones que van a necesitar son `actions/checkout` y `actions/setup-python`. Usen la versión `v7`.
+- Las dependencias están en `requirements-dev.txt`.
+- El comando de pruebas es `pytest -v`.
 
-  pruebas:
-    name: Pruebas (Python ${{ matrix.python-version }})
-    needs: lint
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12", "3.13"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
-      - run: pip install -r requirements-dev.txt
-      - name: Pruebas con cobertura (mínimo 80%)
-        run: pytest -v --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
-      - name: Guardar el reporte de cobertura
-        if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v7
-        with:
-          name: cobertura
-          path: coverage.xml
-```
-
-**Qué debe pasar:** el job de pruebas se lanza dos veces en paralelo, una por cada versión de Python. Al final de la ejecución, abajo, aparece el artefacto **cobertura** para descargar.
-
-- **`matrix`** repite el mismo job cambiando un valor. Así se detecta el código que funciona en una versión de Python y no en otra.
-- **`--cov-fail-under=80`** convierte la cobertura en una regla: si las pruebas cubren menos del 80% del código, el job falla.
-- Ojo: la cobertura mide qué líneas se ejecutaron durante las pruebas, **no** si las pruebas verifican algo útil. Un 100% con pruebas vacías no protege de nada.
+**Comprobación extra:** rompan una prueba a propósito (cambien un valor esperado en `tests/test_api.py`), hagan commit y confirmen que el pipeline se pone en rojo solo. Después devuélvanlo.
 
 ---
 
-## Paso 4 · El quality gate del modelo (15 min)
+## Reto 2 · Revisar el estilo antes de gastar tiempo (15 min)
 
-Este es el paso que diferencia un pipeline de software tradicional de uno para una solución con IA. Reemplaza el contenido de `ci.yml` por la versión final:
+Agreguen un **segundo job** llamado `Lint y formato` que corra `ruff` sobre el código, y háganlo de manera que **si el lint falla, las pruebas ni siquiera arranquen**.
 
-```yaml
-name: CI
+**Criterio de aceptación:**
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+- Agregan `import os` al inicio de `app/main.py` sin usarlo y hacen commit.
+- En Actions: el job de lint aparece en rojo en menos de 30 segundos y el de pruebas aparece como **omitido** (skipped), no como fallido.
 
-permissions:
-  contents: read
+**Pistas**
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+- Los comandos son `ruff check .` y `ruff format --check .`.
+- Instalen la herramienta con la versión fija: `pip install ruff==0.15.11`. Si la dejan libre, el día que salga una versión nueva el pipeline se pone rojo solo. Ese es un problema real, no una manía.
+- Busquen en la documentación qué palabra hace que un job espere a otro.
+- Mientras estén ahí, busquen qué hace `cache: pip` dentro de `setup-python` y mídanlo: comparen el tiempo del paso de instalación entre dos ejecuciones seguidas.
 
-jobs:
-  lint:
-    name: Lint y formato
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - run: pip install ruff==0.15.11
-      - run: ruff check .
-      - run: ruff format --check .
+---
 
-  pruebas:
-    name: Pruebas (Python ${{ matrix.python-version }})
-    needs: lint
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12", "3.13"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
-      - run: pip install -r requirements-dev.txt
-      - name: Pruebas unitarias y de API con cobertura (mínimo 80%)
-        run: >
-          pytest -v --ignore=tests/test_calidad_modelo.py
-          --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
-      - name: Guardar el reporte de cobertura
-        if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v7
-        with:
-          name: cobertura
-          path: coverage.xml
+## Reto 3 · Dos versiones de Python y cobertura mínima (15 min)
 
-  calidad-modelo:
-    name: Quality gate del modelo
-    needs: pruebas
-    runs-on: ubuntu-latest
-    env:
-      UMBRAL_EXACTITUD: "0.80"
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: requirements-dev.txt
-      - run: pip install -r requirements-dev.txt
-      - name: Exactitud del clasificador sobre datos de evaluación
-        run: pytest -v -s tests/test_calidad_modelo.py
-```
+El área de infraestructura va a migrar a Python 3.13 el próximo trimestre y nadie sabe si el código aguanta. Hagan que **el mismo job de pruebas corra en 3.12 y en 3.13**, en paralelo, y que el pipeline **falle si la cobertura baja del 80%**.
 
-Abre `tests/test_calidad_modelo.py` y léelo: entrena el modelo, le pasa las 16 solicitudes de `data/evaluacion.csv` (que nunca vio al entrenar), calcula el porcentaje de aciertos y falla si baja del umbral.
+**Criterio de aceptación:**
 
-**Qué debe pasar:** tres jobs en cadena, todos en verde, y en el resumen de la ejecución aparece *Exactitud del modelo: 100.00%*.
+- En Actions se ven dos jobs de pruebas, uno por versión, corriendo al mismo tiempo.
+- El log muestra el porcentaje de cobertura.
+- Al terminar la ejecución, se puede **descargar** el reporte de cobertura desde la página de la ejecución.
 
-### Rómpelo a propósito
+**Pistas**
 
-Imagina que un compañero quiere que el modelo ocupe menos memoria. Abre `app/clasificador.py` y cambia la línea del vectorizador por esta:
+- Busquen `strategy.matrix` en la documentación de GitHub Actions.
+- `pytest` acepta `--cov=app`, `--cov-report=xml` y `--cov-fail-under`.
+- Para dejar un archivo descargable existe `actions/upload-artifact@v7`.
+
+**Para discutir en el equipo:** la cobertura mide qué líneas se ejecutaron durante las pruebas. ¿Eso garantiza que las pruebas sirvan? Escriban su respuesta en el README de su repositorio.
+
+---
+
+## Reto 4 · El quality gate del modelo (25 min) — el reto principal
+
+Todo lo anterior protege el **código**. Este reto protege el **modelo**, y es lo que diferencia un pipeline de software tradicional de uno para una solución con IA.
+
+En `data/evaluacion.csv` hay 16 solicitudes con su categoría correcta. El modelo **nunca las ve** al entrenar. Escriban una prueba nueva, `tests/test_calidad_modelo.py`, que clasifique esas 16 solicitudes, calcule el porcentaje de aciertos y **falle si baja del 80%**. Después agreguen al pipeline un tercer job, `Quality gate del modelo`, que corra solo esa prueba después de que pasen las demás.
+
+**Criterio de aceptación:**
+
+1. Con el código como está, el job pasa y el log muestra la exactitud obtenida.
+2. Alguien del equipo aplica este cambio en `app/clasificador.py`:
 
 ```python
             ("tfidf", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), max_features=10)),
 ```
 
-Haz commit y observa:
+   Al hacer commit, el lint pasa, las pruebas de código pasan en las dos versiones de Python, **y el quality gate se pone en rojo**. El equipo puede explicar por qué las otras pruebas no lo detectaron.
 
-- **Lint y formato:** verde. El código está perfectamente escrito.
-- **Pruebas 3.12 y 3.13:** verde. La API responde, la cobertura sigue en 100%.
-- **Quality gate del modelo:** rojo. *Exactitud 56.25% por debajo del umbral 80%*.
+3. Devuelven el cambio y todo vuelve a verde.
 
-No se rompió el código: se rompió el comportamiento del modelo. Sin este job, el cambio habría llegado a producción y casi la mitad de las solicitudes de los ciudadanos habrían terminado en la cola equivocada. Esa es la diferencia entre CI para software y CI para soluciones con IA.
+**Pistas**
 
-Devuelve la línea como estaba y vuelve a verde.
+- En `app/clasificador.py` ya existe `cargar_datos("evaluacion.csv")` y la clase `Clasificador` con su método `clasificar`, que devuelve un diccionario con la categoría.
+- El umbral no debería estar escrito a mano dentro de la prueba: léanlo de una variable de entorno con valor por defecto, y definan esa variable en el workflow. Así el umbral se sube sin tocar el código.
+- Para que el job corra **solo** esa prueba: `pytest -v -s tests/test_calidad_modelo.py`. Y para que los otros jobs no la repitan: `--ignore=tests/test_calidad_modelo.py`.
+
+**Para discutir:** ¿quién decide el umbral, el equipo técnico o el dueño del trámite? ¿Qué pasa si se pone en 95%?
 
 ---
 
-## Paso 5 · Proteger `main` con un Pull Request (18 min)
+## Reto 5 · Que nadie pueda integrar en rojo (20 min)
 
-Hasta ahora has hecho commit directo a `main`. En un equipo real eso no se permite: los cambios entran por Pull Request y solo si el pipeline está en verde.
+Hasta aquí cualquiera puede hacer commit directo a `main` aunque el pipeline esté fallando. Ciérrenlo.
 
-### 5.1 Crear la regla
+Configuren el repositorio para que **todo cambio entre por Pull Request** y solo se pueda integrar si los cuatro checks están en verde. Después demuéstrenlo:
 
-1. **Settings → Rules → Rulesets → New ruleset → New branch ruleset**.
-   > En algunas cuentas aparece como **Settings → Branches → Add branch protection rule**. Da lo mismo.
-2. Nombre: `proteger main`. **Enforcement status: Active**.
-3. En **Target branches → Add target → Include default branch**.
-4. Marca **Require a pull request before merging**.
-5. Marca **Require status checks to pass** y agrega los cuatro:
-   `Lint y formato`, `Pruebas (Python 3.12)`, `Pruebas (Python 3.13)`, `Quality gate del modelo`.
-   > GitHub solo deja buscar checks que ya corrieron alguna vez en el repositorio. Por eso esta configuración va de última.
-6. **Create**.
+1. Creen la rama `bug/validacion`.
+2. En `app/clasificador.py`, dentro de `normalizar`, borren las dos líneas que rechazan el texto vacío.
+3. Abran el Pull Request hacia `main`.
 
-### 5.2 Probar que la regla funciona
+**Criterio de aceptación:**
 
-1. Abre `app/clasificador.py` y pulsa el lápiz.
-2. Dentro de la función `normalizar`, borra estas dos líneas:
+- El pipeline corre solo sobre el Pull Request, dos pruebas fallan y el botón **Merge pull request** queda bloqueado.
+- Al restaurar las líneas en la misma rama, el PR pasa a verde y el merge se habilita.
 
-```python
-    if not texto or not texto.strip():
-        raise ValueError("El texto de la solicitud no puede estar vacío")
-```
+**Pistas**
 
-3. Abajo, en **Commit changes**, escoge **Create a new branch for this commit and start a pull request**. Nombre de la rama: `bug/validacion`. **Propose changes** y luego **Create pull request**.
-4. El pipeline arranca solo. Dos pruebas fallan (`test_normalizar_rechaza_texto_vacio` y `test_clasificar_texto_vacio_da_422`) y el botón **Merge pull request** queda bloqueado.
-5. En el mismo Pull Request, pestaña **Files changed**, vuelve a poner las dos líneas y haz commit en la rama `bug/validacion`.
-6. El pipeline corre de nuevo, todo pasa a verde y el merge se habilita.
+- **Settings → Rules → Rulesets → New branch ruleset**, objetivo: la rama por defecto.
+- GitHub solo deja marcar como obligatorio un check que ya haya corrido alguna vez con ese nombre exacto. Por eso este reto va de último.
 
-Ahí el pipeline dejó de ser un tablero informativo y se convirtió en una regla del equipo: nadie integra código en rojo, ni el líder técnico.
+---
+
+## Qué entrega cada equipo
+
+Al final de la sesión, en el chat:
+
+1. El enlace de su repositorio.
+2. Una captura de una ejecución en rojo y una en verde.
+3. Las dos respuestas escritas: la de cobertura (reto 3) y la del umbral (reto 4).
 
 ---
 
@@ -382,28 +186,16 @@ Ahí el pipeline dejó de ser un tablero informativo y se convirtió en una regl
 
 | Síntoma | Qué revisar |
 |---|---|
-| La pestaña Actions no muestra ninguna ejecución | Si hiciste Fork en vez de "Use this template", falta habilitar los workflows (Paso 0.2) |
-| "Workflow file issue" o un error de YAML | La indentación. En YAML los espacios importan y no se pueden usar tabuladores |
-| Todo falla en "Instalar dependencias" | Revisa que el nombre del archivo sea exactamente `.github/workflows/ci.yml` y que el paso de checkout esté presente |
-| No aparecen los checks al configurar la regla | Deben haber corrido al menos una vez con ese nombre exacto |
-| Quiero volver a correr una ejecución | Entra a la ejecución y pulsa **Re-run jobs** |
+| No aparece ninguna ejecución en Actions | El archivo debe llamarse exactamente `.github/workflows/ci.yml`. Si hicieron Fork, falta habilitar los workflows |
+| "Workflow file issue" o error de YAML | La indentación. En YAML los espacios importan y no se admiten tabuladores |
+| Falla al instalar dependencias | Revisen que el paso de checkout esté antes y que el archivo sea `requirements-dev.txt` |
+| No encuentro los checks al crear la regla | Deben haber corrido al menos una vez con ese nombre |
+| Quiero repetir una ejecución | Entren a la ejecución y pulsen **Re-run jobs** |
 
 ---
 
-## Trabajo autónomo
+## Trabajo autónomo (después de la sesión)
 
-1. Agrega cinco ejemplos nuevos por categoría a `data/entrenamiento.csv` y verifica que el quality gate siga en verde.
-2. Sube el umbral a `0.90` (variable `UMBRAL_EXACTITUD` en el workflow) y comprueba si el modelo lo aguanta.
-3. Agrega un job que construya la imagen Docker de la API con `docker build` (el `Dockerfile` ya está en el repositorio, aún sin publicarla). Ese es el punto de partida de la Sesión 2: entrega continua.
-
----
-
-## Para correrlo en tu máquina (opcional, no hace falta hoy)
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-ruff check . && ruff format --check .
-pytest -v --cov=app
-uvicorn app.main:app --reload     # http://127.0.0.1:8000/docs
-```
+1. Agreguen cinco ejemplos nuevos por categoría a `data/entrenamiento.csv` y verifiquen que el quality gate siga en verde.
+2. Suban el umbral a 0.90 y vean si el modelo lo aguanta.
+3. Agreguen un job que construya la imagen Docker de la API con `docker build`. Ese es el punto de partida de la Sesión 2: entrega continua.
