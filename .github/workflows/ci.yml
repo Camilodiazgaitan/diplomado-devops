@@ -10,21 +10,43 @@
 
 name: CI
 
-on:                      
+on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  pruebas:
-    runs-on: ubuntu-latest 
+
+  lint:
+    name: Lint y formato
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v7
+
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install -r requirements-dev.txt
-      - run: pytest -v
 
- 
+      - run: pip install ruff==0.15.11
+
+      - run: ruff check .
+
+      - run: ruff format --check .
+
+  pruebas:
+    name: Pruebas
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements-dev.txt
+
+      - run: pytest -v
