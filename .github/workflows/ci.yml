@@ -9,49 +9,48 @@
 # Documentación: https://docs.github.com/actions
 
 name: CI
-
-on:
+on:                        # disparadores
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 jobs:
-
   lint:
-    name: Lint y formato
+    name: lint y formato
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
-
+         python-version: "3.12"
       - run: pip install ruff==0.15.11
-
-      - run: ruff check .
-
-      - run: ruff format --check .
-
+      - name: Reglas de estilo y errores comunes
+        run : ruff check .
+      - name: Formato del codigo
+        run: ruff format --check .
   pruebas:
-    name: Pruebas
+    name: Pruebas (Python ${{ matrix.python-version }})
     needs: lint
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-python@v7
         with:
-        
-          python-version: "3.12"
-          
-          cache: pip
-          cache-dependence-path: requirements-dev.txt
-
-          
+         python-version: ${{ matrix.python-version }}
+         cache: pip                               # reutiliza lo descargado en ejecuciones anteriores
+         cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-
-      - run: pytest -v
+      - name: Pruebas con cobertura (mínimo 80%)
+        run: pytest -v --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+      - name: Guardar el reporte de cobertura
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cobertura
+          path: coverage.xml
+      - name: Por ahora no verifica nada
+        run: echo "El pipeline corre, pero todavia no verifica nada. Resuelvan el reto 1."
