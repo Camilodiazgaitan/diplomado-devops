@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: matrix.python-version                   #Indicar name
+          python-version: matrix.python-version                              #Indicar name
           cache: pip
 
       - run: pip install -r requirements-dev.txt
