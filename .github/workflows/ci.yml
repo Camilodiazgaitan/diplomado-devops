@@ -7,35 +7,29 @@
 # Reto 4 — agregar el job del quality gate del modelo.
 #
 # Documentación: https://docs.github.com/actions
-name: CI
 
-on:
+name: CI
+on:                        # disparadores
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 jobs:
-
   lint:
-    name: Lint y formato
+    name: lint y formato
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
-
+         python-version: "3.12"
       - run: pip install ruff==0.15.11
-
-      - run: ruff check .
-
-      - run: ruff format --check .
-
+      - name: Reglas de estilo y errores comunes
+        run : ruff check .
+      - name: Formato del codigo
+        run: ruff format --check .
   pruebas:
-   name: Pruebas (Python ${{ matrix.python-version }})
+    name: Pruebas (Python ${{ matrix.python-version }})
     needs: lint
     runs-on: ubuntu-latest
     strategy:
