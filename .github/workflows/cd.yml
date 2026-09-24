@@ -1,76 +1,120 @@
 # ============================================================================
 # PIPELINE DE CD · Sesión 2
 # Qué hace este archivo, en palabras simples:
-# 1. Espera a que el pipeline de CI (el de ayer) termine en verde.
-# 2. Empaqueta la aplicación en una "imagen" (una caja con todo lo que
-# necesita para correr) y la guarda en el registro de GitHub.
-# 3. Prende esa caja en un ambiente de ensayo (puesta en escena) y le hace una
-# prueba rápida.
-# 4. Si alguien del equipo aprueba, la marca como la versión de producción.
+#   1. Espera a que el pipeline de CI (el de ayer) termine en verde.
+#   2. Empaqueta la aplicación en una "imagen" (una caja con todo lo que
+#      necesita para correr) y la guarda en el registro de GitHub.
+#   3. Prende esa caja en un ambiente de ensayo (staging) y le hace una
+#      prueba rápida.
+#   4. Si alguien del equipo aprueba, la marca como la versión de producción.
 # ============================================================================
 
-nombre: CD
+name: CD
 
 # ---------------------------------------------------------------------------
-# CUÁNDO ARRANCA: cuando termina el flujo de trabajo de CI sobre la rama principal.
+# CUÁNDO ARRANCA: cuando termina el workflow de CI sobre la rama main.
 # ---------------------------------------------------------------------------
-en:
-  ejecución_del_flujo de trabajo:
-    flujos de trabajo: [CI] # el nombre de su flujo de trabajo de CI (línea "name:" de ci.yml)
-    tipos: [completado] # "cuando termine"
-    sucursales: [principal] # solo cambios en principal
-  flujo de trabajo_dispatch: # agrega el botón "Ejecutar flujo de trabajo" para lanzarlo a mano
+on:
+  workflow_run:
+    workflows: [CI]   # el nombre de su workflow de CI (línea "name:" de ci.yml)
+    types: [completed]              # "cuando termine"
+    branches: [main]                # solo cambios en main
+  workflow_dispatch:                # agrega el botón "Run workflow" para lanzarlo a mano
 
 # ---------------------------------------------------------------------------
 # PERMISOS: qué puede hacer el pipeline en su repositorio.
 # ---------------------------------------------------------------------------
-permisos:
-  contenidos: leer # leer el código
-  paquetes: escriba # ¿el pipeline necesita LEER o ESCRIBIR paquetes? (leer/escribir)
+permissions:
+  contents: read                    # leer el código
+  packages: write       # ¿el pipeline necesita LEER o ESCRIBIR paquetes? (read / write)
 
 # Nunca dos despliegues al mismo tiempo: si llega otro, espera su turno.
-concurrencia:
-  grupo: cd-${{ github.repository }}
-  cancelación en curso: falso
+concurrency:
+  group: cd-${{ github.repository }}
+  cancel-in-progress: false
 
-empleos:
+jobs:
   # =========================================================================
   # RETO 6 · Construir la imagen y guardarla en el registro de GitHub
   # =========================================================================
   construir:
-    nombre: Construir y publicar la imagen
+    name: Construir y publicar la imagen
     # Solo sigue si CI terminó en verde (o si lo lanzaron a mano con el botón).
-    Si: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    salidas: # datos que este trabajo le pasa a los siguientes
-      imagen: ${{ pasos.nombre.outputs.imagen }}
-      versión: ${{ steps.nombre.outputs.version }}
-    pasos:
-      - nombre: Descargar el código que pasó CI
-        usos: actions/checkout@v7
-        con:
+    outputs:                        # datos que este job le pasa a los siguientes
+      imagen: ${{ steps.nombre.outputs.imagen }}
+      version: ${{ steps.nombre.outputs.version }}
+    steps:
+      - name: Descargar el código que pasó CI
+        uses: actions/checkout@v7
+        with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - nombre: Decidir el nombre y la versión de la imagen
+      - name: Decidir el nombre y la versión de la imagen
         id: nombre
-        entorno:
+        env:
           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-        correr: |
+        run: |
           # Nombre: ghcr.io/usuario/repositorio (en minúsculas, el registro lo exige)
           echo "imagen=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
           # Versión: los 7 primeros caracteres del commit, por ejemplo 3f9a1c2
           echo "version=${SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - nombre: Iniciar sesión en el registro de GitHub
-        entorno:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub lo crea solo en cada ejecución
-        ejecutar: echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Iniciar sesión en el registro de GitHub
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}   # GitHub lo crea solo en cada ejecución
+        run: echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - nombre: Construir la imagen (usa el Dockerfile del repositorio)
-        ejecutar: >
-          compilación de Docker
+      - name: Construir la imagen (usa el Dockerfile del repositorio)
+        run: >
+          docker build
           -t "${{ steps.nombre.outputs.imagen }}:${{ steps.nombre.outputs.version }}"
           --label org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          .
+
+      - name: Publicar la imagen en el registro
+        run: docker push "${{ steps.nombre.outputs.imagen }}:${{ steps.nombre.outputs.version }}"
+
+  # =========================================================================
+  # RETO 7 · Staging: prender la imagen y hacerle una prueba de humo
+  # =========================================================================
+  staging:
+    name: Desplegar en staging
+    needs: construir                # espera a que termine "construir"
+    runs-on: ubuntu-latest
+    environment: staging            # queda registrado como un despliegue a "staging"
+    env:
+      IMAGEN: ${{ needs.construir.outputs.imagen }}:${{ needs.construir.outputs.version }}
+    steps:
+      - name: Iniciar sesión en el registro de GitHub
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Prender la imagen publicada (la misma, no se construye otra)
+        run: docker run -d --name tramites -p 8000:8000 "$IMAGEN"
+
+      - name: Esperar a que la API conteste (máximo 60 segundos)
+        run: |
+          for intento in $(seq 1 30); do
+            if curl -fs http://localhost:8000/health; then exit 0; fi
+            sleep 2
+          done
+          echo "La API no contestó en 60 segundos. Estos son sus mensajes:"
+          docker logs tramites
+          exit 1
+
+      - name: Prueba de humo
+        run: |
+          RESPUESTA=$(curl -fs -X POST http://localhost:8000/clasificar \
+            -H "Content-Type: application/json" \
+            -d '{"texto": "quiero pagar la multa de tránsito"}')
+          echo "La API respondió: $RESPUESTA"
+          CATEGORIA=$(echo "$RESPUESTA" | jq -r .categoria)
+          # ¿En qué categoría debería caer "quiero pagar la multa de tránsito"?
+          # (renovacion, certificado, pago o queja)
+          test "$CATEGORIA" = "pago"
           .
 
       - nombre: Publicar la imagen en el registro
