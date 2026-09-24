@@ -47,8 +47,11 @@ jobs:
         with:
         
           python-version: "3.12"
+          
           cache: pip
           cache-dependence-path: requirements-dev.txt
+
+          
       - run: pip install -r requirements-dev.txt
 
       - run: pytest -v
